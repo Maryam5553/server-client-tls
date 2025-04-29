@@ -1,0 +1,1 @@
+// génère clé et si trouve pas certificat, génère aussi
