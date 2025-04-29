@@ -6,6 +6,7 @@
 #define SERV_CERT_FILENAME "serv_cert.pem"
 #define SERV_KEY_FILENAME "serv_key.pem"
 #define SERV_PORT "8080"
+#define CA_FILE "CA_cert.pem"
 
 // print openssl err and free context
 void handle_err(char *err_msg, SSL_CTX **ctx)
@@ -39,7 +40,7 @@ int init_ctx(SSL_CTX **ctx)
     return 0;
 }
 
-// load server certificate and private key
+// load server and CA certificates
 int load_priv_files(SSL_CTX **ctx)
 {
     // load server certificate chain
@@ -58,8 +59,15 @@ int load_priv_files(SSL_CTX **ctx)
         return 1;
     }
 
-    /*Note: Even if a client did present a trusted ceritificate, for it to be useful, the server application would still need custom code to use the verified identity to grant nondefault access to that particular client. Some servers grant access to all clients with certificates from a private CA, this then requires processing of certificate revocation lists to deauthorise a client. It is often simpler and more secure to instead keep a list of authorised public keys.*/
-    SSL_CTX_set_verify(*ctx, SSL_VERIFY_NONE, NULL); // TODO change to "verify client cert"
+    // request client certificate, connexion fails if no certificate is sent. TODO revocation list
+    SSL_CTX_set_verify(*ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+
+    if (SSL_CTX_load_verify_file(*ctx, CA_FILE) == 0)
+    {
+        printf("Failed to load CA file from \"%s\"", CA_FILE);
+        handle_err("", ctx);
+        return 1;
+    }
     return 0;
 }
 
@@ -91,7 +99,7 @@ int init_listen(SSL_CTX **ctx, BIO **bio)
 void handle_client_error(char *err_msg, BIO **client_bio, SSL **ssl)
 {
     ERR_print_errors_fp(stderr);
-    fprintf(stderr, "%s", err_msg);
+    fprintf(stderr, "%s\n", err_msg);
     SSL_free(*ssl);
     BIO_free(*client_bio);
 }
@@ -174,7 +182,7 @@ int main()
             continue;
 
         printf("Client connected securely.\n");
-        if (treat_client(&ssl) == 1)
+        if (treat_client(&ssl) == 1) // TODO segfault when client disconnect
             continue;
 
         SSL_free(ssl);
