@@ -2,20 +2,12 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <stdio.h>
+#include "../tools/ssl_err.h"
 
 #define SERV_CERT_FILENAME "serv_cert.pem"
 #define SERV_KEY_FILENAME "serv_key.pem"
 #define SERV_PORT "8080"
 #define CA_FILE "CA_cert.pem"
-
-// print openssl err and free context
-void handle_err(char *err_msg, SSL_CTX **ctx)
-{
-    SSL_CTX_free(*ctx);
-    ERR_print_errors_fp(stderr);
-    printf("\n");
-    fprintf(stderr, "%s.", err_msg);
-}
 
 // create ctx object and set options
 int init_ctx(SSL_CTX **ctx)
@@ -62,6 +54,7 @@ int load_priv_files(SSL_CTX **ctx)
     // request client certificate, connexion fails if no certificate is sent. TODO revocation list
     SSL_CTX_set_verify(*ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
+    // root CA certificate to accept client certificate
     if (SSL_CTX_load_verify_file(*ctx, CA_FILE) == 0)
     {
         printf("Failed to load CA file from \"%s\"", CA_FILE);
@@ -105,12 +98,8 @@ void handle_client_error(char *err_msg, BIO **client_bio, SSL **ssl)
 }
 
 // accept incoming connection and try SSL handshake
-int handle_client_connection(SSL_CTX **ctx, BIO **acceptor_bio, BIO **client_bio, SSL **ssl)
+int handle_client_connection(SSL_CTX **ctx, BIO **client_bio, SSL **ssl)
 {
-    // create new bio for the client
-    *client_bio = BIO_pop(*acceptor_bio);
-    printf("New client\n");
-
     // associate connexion to SSL handle
     *ssl = SSL_new(*ctx);
     if (*ssl == NULL)
@@ -120,31 +109,63 @@ int handle_client_connection(SSL_CTX **ctx, BIO **acceptor_bio, BIO **client_bio
     }
     SSL_set_bio(*ssl, *client_bio, *client_bio);
 
+    printf("Waiting for client to initiate TLS handshake...\n");
     // attempt SSL handshake with the client
     if (SSL_accept(*ssl) <= 0)
     {
-        handle_client_error("Error performing SSL handshake with client", client_bio, ssl);
+        handle_client_error("Error performing SSL handshake with client", client_bio, ssl); // TODO segfault when client fails
         return 1;
     }
+
+    printf("TLS handshake completed. Client connected securely.\n");
     return 0;
 }
 
 // operations to perform when client is connected
 int treat_client(SSL **ssl)
 {
-    char buf[2048];
-    size_t total = 0;
-    size_t nread = 0;
-    while (SSL_read_ex(*ssl, buf, sizeof(buf), &nread) > 0)
+    while (1)
     {
-        size_t nwritten = 0;
-        if (SSL_write_ex(*ssl, buf, nread, &nwritten) > 0 && nwritten == nread)
+        char buf[2048];
+        int res = 1;
+        // clear possible read/write error from previous loop
+        ERR_clear_error();
+        // READ
+        size_t nb_read = 0;
+        res = SSL_read_ex(*ssl, buf, sizeof(buf), &nb_read);
+        if (res <= 0)
         {
-            total += nwritten;
-            continue;
+            fprintf(stderr, "error reading data.\n");
+            if (handle_read_write_err(*ssl, res) == 1)
+            {
+                // if read error is fatal, stop
+                return 1;
+            }
+            else
+            {
+                // non-fatal error: try reading again
+                continue;
+            }
         }
-        printf("Error echoing client input\n");
-        return 1;
+        // print message read on the connection
+        printf("Read: \"%s\".\n", buf);
+
+        // WRITE
+        size_t nb_written = 0;
+        res = SSL_write_ex(*ssl, buf, nb_read, &nb_written);
+        if (res > 0 && nb_written == nb_read)
+        {
+            printf("Wrote: \"%s\".\n", buf);
+        }
+        else
+        {
+            fprintf(stderr, "Error writing data.\n");
+            if (handle_read_write_err(*ssl, res) == 1)
+            {
+                // if write error is fatal, stop
+                return 1;
+            }
+        }
     }
     return 0;
 }
@@ -152,7 +173,11 @@ int treat_client(SSL **ssl)
 int main()
 {
     SSL_CTX *ctx = NULL;
-    BIO *bio = NULL;
+    /* BIO used to accept incoming connections.
+     when a  new connection is established, a new BIO socket is created for
+     the client (client_bio) and appended to this BIO. We'll then pop the
+     client BIO so that the accept_bio can await new connections. */
+    BIO *accept_bio = NULL;
 
     if (init_ctx(&ctx) == 1)
         return EXIT_FAILURE;
@@ -160,36 +185,39 @@ int main()
     if (load_priv_files(&ctx) == 1)
         return EXIT_FAILURE;
 
-    if (init_listen(&ctx, &bio) == 1)
+    if (init_listen(&ctx, &accept_bio) == 1)
         return EXIT_FAILURE;
 
-    printf("Server listening on port %s.\n", SERV_PORT);
+    printf("Server listening on port %s...\n", SERV_PORT);
 
-    // client loop
+    // Client loop
     while (1)
     {
         BIO *client_bio = NULL;
         SSL *ssl = NULL;
 
         ERR_clear_error();
-        if (BIO_do_accept(bio) <= 0)
+        if (BIO_do_accept(accept_bio) <= 0)
         {
-            /* Client went away before we accepted the connection */
+            // client went away before we accepted the connection
             continue;
         }
+        printf("New client\n");
 
-        if (handle_client_connection(&ctx, &bio, &client_bio, &ssl) == 1)
+        client_bio = BIO_pop(accept_bio);
+        if (handle_client_connection(&ctx, &client_bio, &ssl) == 1)
             continue;
 
         printf("Client connected securely.\n");
-        if (treat_client(&ssl) == 1) // TODO segfault when client disconnect
+
+        if (treat_client(&ssl) == 1)
             continue;
 
         SSL_free(ssl);
         BIO_free(client_bio);
     }
 
-    BIO_free(bio);
+    BIO_free(accept_bio);
     SSL_CTX_free(ctx);
     return EXIT_SUCCESS;
 }

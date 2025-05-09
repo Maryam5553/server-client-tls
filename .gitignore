@@ -1,3 +1,6 @@
 *.pem
+*.o
+*.gch
 server/server
 client/client
+.vscode
