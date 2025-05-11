@@ -89,12 +89,11 @@ int init_listen(SSL_CTX **ctx, BIO **bio)
     return 0;
 }
 
-void handle_client_error(char *err_msg, BIO **client_bio, SSL **ssl)
+void handle_client_error(char *err_msg, SSL **ssl)
 {
     ERR_print_errors_fp(stderr);
     fprintf(stderr, "%s\n", err_msg);
-    SSL_free(*ssl);
-    BIO_free(*client_bio);
+    SSL_free(*ssl); // this also frees the client_bio
 }
 
 // accept incoming connection and try SSL handshake
@@ -104,7 +103,7 @@ int handle_client_connection(SSL_CTX **ctx, BIO **client_bio, SSL **ssl)
     *ssl = SSL_new(*ctx);
     if (*ssl == NULL)
     {
-        handle_client_error("Couldn't create SSL handle for client", client_bio, NULL);
+        handle_client_error("Couldn't create SSL handle for client", ssl);
         return 1;
     }
     SSL_set_bio(*ssl, *client_bio, *client_bio);
@@ -113,7 +112,7 @@ int handle_client_connection(SSL_CTX **ctx, BIO **client_bio, SSL **ssl)
     // attempt SSL handshake with the client
     if (SSL_accept(*ssl) <= 0)
     {
-        handle_client_error("Error performing SSL handshake with client", client_bio, ssl); // TODO segfault when client fails
+        handle_client_error("Error performing SSL handshake with client", ssl); // TODO segfault when client fails
         return 1;
     }
 
@@ -214,7 +213,6 @@ int main()
             continue;
 
         SSL_free(ssl);
-        BIO_free(client_bio);
     }
 
     BIO_free(accept_bio);
