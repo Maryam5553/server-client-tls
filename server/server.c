@@ -89,6 +89,7 @@ int init_listen(SSL_CTX **ctx, BIO **bio)
     return 0;
 }
 
+// print errors and free ressources allocated to client
 void handle_client_error(char *err_msg, SSL **ssl)
 {
     ERR_print_errors_fp(stderr);

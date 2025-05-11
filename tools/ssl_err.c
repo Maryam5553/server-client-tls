@@ -7,7 +7,7 @@ void handle_err(char *err_msg, SSL_CTX **ctx)
     SSL_CTX_free(*ctx);
     ERR_print_errors_fp(stderr);
     printf("\n");
-    fprintf(stderr, "%s.", err_msg);
+    fprintf(stderr, "%s.\n", err_msg);
 }
 
 // send close_notify to the peer, after receiving a close_notify message from the peer.

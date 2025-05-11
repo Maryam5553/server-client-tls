@@ -258,6 +258,7 @@ int main()
 
 end:
     SSL_free(ssl);
-    SSL_CTX_free(ctx);
+    if (res==0)
+        SSL_CTX_free(ctx);
     return res;
 }
