@@ -157,10 +157,9 @@ int connect_to_server(SSL_CTX **ctx, SSL **ssl, int *sock)
 }
 
 // write data on the open connection
-int send_data(SSL **ssl)
+int send_data(SSL **ssl, const char *data)
 {
     size_t nb_written;
-    const char *data = "hello";
 
     ERR_clear_error(); // clear possible previous read/write error
     int res = SSL_write_ex(*ssl, data, strlen(data), &nb_written);
@@ -176,7 +175,7 @@ int send_data(SSL **ssl)
 
 int read_data(SSL **ssl)
 {
-    char buf[2048];
+    char buf[2048] = {0};
     size_t nb_read = 0;
 
     ERR_clear_error(); // clear possible previous read/write error
@@ -191,6 +190,30 @@ int read_data(SSL **ssl)
     return 0;
 }
 
+// close connection with server
+int shutdown_con(SSL_CTX **ctx, SSL **ssl)
+{
+    int ret = SSL_shutdown(*ssl);
+    if (ret == 0)
+    {
+        // we sent a close_notify but didn't receive one back
+        // so now we're making a second call to SSL_shutdown to wait for the peer's close_notify.
+        printf("Sent close_notify to the server.\n");
+        ret = SSL_shutdown(*ssl);
+        if (ret == 1)
+        {
+            printf("Shutdown completed.\n");
+            return 0;
+        }
+    }
+    else if (ret < 1)
+    {
+        handle_err("error shutting down", ctx);
+        return 1;
+    }
+    return 1;
+}
+
 int main()
 {
     SSL_CTX *ctx = NULL;
@@ -200,45 +223,41 @@ int main()
 
     // init
     if (init_ctx(&ctx) == 1)
-        return EXIT_FAILURE;
+    {
+        res = EXIT_FAILURE;
+        goto end;
+    }
 
     if (load_priv_files(&ctx) == 1)
-        return EXIT_FAILURE;
+    {
+        res = EXIT_FAILURE;
+        goto end;
+    }
 
     // connection
     if (connect_to_server(&ctx, &ssl, &sock) == 1)
-        return EXIT_FAILURE;
+    {
+        res = EXIT_FAILURE;
+        goto end;
+    }
 
     // send and receive data
-    int ret = EXIT_SUCCESS;
-    if (send_data(&ssl) == 1)
+    const char *data = "hello";
+    if (send_data(&ssl, data) == 1)
     {
-        ret = EXIT_FAILURE;
-        goto shutdown;
+        res = shutdown_con(&ctx, &ssl);
+        goto end;
     }
     if (read_data(&ssl) == 1)
     {
-        ret = EXIT_FAILURE;
-        goto shutdown;
+        res = shutdown_con(&ctx, &ssl);
+        goto end;
     }
 
-shutdown:
-    ret = SSL_shutdown(ssl);
-    if (ret == 0)
-    {
-        printf("Sent close_notify to the server.\n");
-        // we sent a close_notify but didn't receive one back
-        // so now we're making a second call to SSL_shutdown to wait for the peer's close_notify.
-        ret = SSL_shutdown(ssl);
-        if (ret == 1)
-        {
-            printf("Shutdown completed.\n");
-            ret = EXIT_SUCCESS;
-        }
-    }
-    else if (ret < 1)
-    {
-        handle_err("error shutting down", &ctx);
-    }
-    return ret;
+    res = shutdown_con(&ctx, &ssl);
+
+end:
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    return res;
 }
