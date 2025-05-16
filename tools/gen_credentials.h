@@ -21,7 +21,13 @@ int gen_keyfile(char *filename);
 // Returns NULL if didn't work.
 EVP_PKEY *read_key(char *filename);
 
-// Generate a TLS certificate, using the key given in parameter
-int gen_cert(char *filename, EVP_PKEY *pkey);
+// Generate a TLS certificate, using the key given in parameter.
+// user_key/user_CN are the key/CN of the entity of the certificate.
+// root_key/issuer_CN are the key/CN of the entity signing the certificate (CA).
+// For a self_signed certifiate, user and issuer are the same entity.
+int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsigned char *user_CN, const unsigned char *issuer_CN);
+
+// Generate a certificate signing request and write it in file given in parameter.
+int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename);
 
 #endif

@@ -9,6 +9,8 @@ int main()
         return 1;
     }
 
+    printf("test_key.pem generated.\n");
+
     EVP_PKEY *key = read_key("test_key.pem");
     if (key == NULL)
     {
@@ -16,11 +18,23 @@ int main()
         return 1;
     }
 
-    if (gen_cert("test_cert.pem", key) == 1)
+    printf("Successfully read test_key.pem.\n");
+
+    if (gen_cert("test_cert.pem", key, key, "XXX", "XXX") == 1) // self-sign certificate
     {
         fprintf(stderr, "gen cert err\n");
         return 1;
     }
+
+    printf("test_cert.pem generated.\n");
+
+    if (gen_CSR_file(key, "XXX", "test_CSR.pem") == 1)
+    {
+        fprintf(stderr, "gen CSR err\n");
+        return 1;
+    }
+
+    printf("test_CSR.pem generated.\n");
 
     EVP_PKEY_free(key);
     return 0;

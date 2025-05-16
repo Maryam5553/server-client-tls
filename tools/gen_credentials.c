@@ -93,11 +93,15 @@ EVP_PKEY *read_key(char *filename)
     return key;
 }
 
-// Generate a TLS certificate, using the key given in parameter
-int gen_cert(char *filename, EVP_PKEY *pkey)
+// Generate a TLS certificate, using the key given in parameter.
+// user_key/user_CN are the key/CN of the entity of the certificate.
+// root_key/issuer_CN are the key/CN of the entity signing the certificate (CA).
+// For a self_signed certifiate, user and issuer are the same entity.
+int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsigned char *user_CN, const unsigned char *issuer_CN)
 {
     X509 *cert = NULL;
-    X509_NAME *name = NULL;
+    X509_NAME *user_name = NULL;
+    X509_NAME *issuer_name = NULL;
     ASN1_INTEGER *serialnb = NULL;
     ASN1_TIME *notBefore = NULL;
     ASN1_TIME *notAfter = NULL;
@@ -114,26 +118,40 @@ int gen_cert(char *filename, EVP_PKEY *pkey)
     }
 
     // set issuer and subject name
-    name = X509_NAME_new();
-    if (name == NULL)
+    user_name = X509_NAME_new();
+    if (user_name == NULL)
     {
         fprintf(stderr, "Allocation of X509_NAME failed.\n");
         ret = 1;
         goto end;
     }
-    if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char *)"XXX", -1, -1, 0) == 0)
+    if (X509_NAME_add_entry_by_txt(user_name, "CN", MBSTRING_ASC, user_CN, -1, -1, 0) == 0)
     {
         fprintf(stderr, "Couldn't create CN.\n");
         ret = 1;
         goto end;
     }
-    if (X509_set_subject_name(cert, name) == 0)
+    if (X509_set_subject_name(cert, user_name) == 0)
     {
         fprintf(stderr, "Couldn't set subject name.\n");
         ret = 1;
         goto end;
     }
-    if (X509_set_issuer_name(cert, name) == 0)
+
+    issuer_name = X509_NAME_new();
+    if (issuer_name == NULL)
+    {
+        fprintf(stderr, "Allocation of X509_NAME failed.\n");
+        ret = 1;
+        goto end;
+    }
+    if (X509_NAME_add_entry_by_txt(issuer_name, "CN", MBSTRING_ASC, issuer_CN, -1, -1, 0) == 0)
+    {
+        fprintf(stderr, "Couldn't create CN.\n");
+        ret = 1;
+        goto end;
+    }
+    if (X509_set_issuer_name(cert, issuer_name) == 0)
     {
         fprintf(stderr, "Couldn't set issuer name.\n");
         ret = 1;
@@ -183,9 +201,9 @@ int gen_cert(char *filename, EVP_PKEY *pkey)
         goto end;
     }
 
-    // set public key
+    // set certificate public key
 
-    if (X509_set_pubkey(cert, pkey) == 0)
+    if (X509_set_pubkey(cert, user_key) == 0)
     {
         fprintf(stderr, "Couldn't set public key.\n");
         ret = 1;
@@ -193,7 +211,7 @@ int gen_cert(char *filename, EVP_PKEY *pkey)
     }
 
     // sign certificate
-    if (X509_sign(cert, pkey, NULL) == 0)
+    if (X509_sign(cert, root_key, NULL) == 0)
     {
         fprintf(stderr, "Couldn't sign certificate.\n");
         ret = 1;
@@ -220,8 +238,89 @@ end:
     ASN1_TIME_free(notBefore);
     ASN1_TIME_free(notAfter);
     ASN1_INTEGER_free(serialnb);
-    X509_NAME_free(name);
+    X509_NAME_free(user_name);
+    X509_NAME_free(issuer_name);
     X509_free(cert);
+
+    fclose(fd);
+    return ret;
+}
+
+// Generate a certificate signing request and write it in file given in parameter.
+int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
+{
+    X509_REQ *CSR = NULL;
+    X509_NAME *subject_name = NULL;
+    FILE *fd = NULL;
+    int ret = 0;
+
+    CSR = X509_REQ_new();
+    if (CSR == NULL)
+    {
+        fprintf(stderr, "Allocation of X509_REQ failed.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // set public key
+    if (X509_REQ_set_pubkey(CSR, key) == 0)
+    {
+        fprintf(stderr, "Failed to set public key.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // set CN
+    subject_name = X509_NAME_new(); // TODO le remplir
+    if (subject_name == NULL)
+    {
+        fprintf(stderr, "Allocation of X509_NAME failed.\n");
+        ret = 1;
+        goto end;
+    }
+
+    if (X509_NAME_add_entry_by_txt(subject_name, "CN", MBSTRING_ASC, CN, -1, -1, 0) == 0)
+    {
+        fprintf(stderr, "Couldn't create CN.\n");
+        ret = 1;
+        goto end;
+    }
+
+    if (X509_REQ_set_subject_name(CSR, subject_name) == 0)
+    {
+        fprintf(stderr, "Set X509_REQ subject name failed.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // sign CSR
+    if (X509_REQ_sign(CSR, key, NULL) == 0)
+    {
+        fprintf(stderr, "Couldn't sign CSR.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // WRITE CSR
+
+    fd = fopen(filename, "w");
+    if (fd == 0)
+    {
+        perror("Couldn't open file");
+        ret = 1;
+        goto end;
+    }
+
+    if (!PEM_write_X509_REQ(fd, CSR))
+    {
+        fprintf(stderr, "Couldn't write CSR in file %s.\n", filename);
+        ret = 1;
+        goto end;
+    }
+
+end:
+    X509_NAME_free(subject_name);
+    X509_REQ_free(CSR);
 
     fclose(fd);
     return ret;
