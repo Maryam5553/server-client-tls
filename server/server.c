@@ -126,7 +126,7 @@ int treat_client(SSL **ssl)
 {
     while (1)
     {
-        char buf[2048];
+        char buf[2048] = {0};
         int res = 1;
         // clear possible read/write error from previous loop
         ERR_clear_error();
