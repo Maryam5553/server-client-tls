@@ -21,13 +21,33 @@ int gen_keyfile(char *filename);
 // Returns NULL if didn't work.
 EVP_PKEY *read_key(char *filename);
 
+// Create a subject name to put in the certificate.
+// TODO for the moment we can only add the Common Name (mandatory), but typically this can include
+// more information on the user (optionally).
+// No need to allocate X509_NAME (with X509_NAME_new), but after this function
+// you need to free the key with X509_NAME_free (only in case of success).
+// Returns NULL if didn't work.
+X509_NAME *make_subject_name(const unsigned char *user_CN);
+
 // Generate a TLS certificate, using the key given in parameter.
-// user_key/user_CN are the key/CN of the entity of the certificate.
-// root_key/issuer_CN are the key/CN of the entity signing the certificate (CA).
+// user_key/user_name are the key/information of the entity of the certificate.
+// root_key/issuer_name are the key/information of the entity signing the certificate (CA).
+// User and Issuer subject names can be created with make_subject_name().
 // For a self_signed certifiate, user and issuer are the same entity.
-int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsigned char *user_CN, const unsigned char *issuer_CN);
+int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name);
 
 // Generate a certificate signing request and write it in file given in parameter.
+// Provide the key used to sign the CSR and the Common Name.
 int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename);
+
+// Read a Certificate Signing Request file.
+// No need to allocate X509_REQ (with X509_REQ_new), but after this function
+// you need to free the CSR with X509_REQ_free (only in case of success).
+// Returns NULL if the CSR couldn't be read.
+X509_REQ *read_CSR(char *filename);
+
+// Takes in parameter a CSR, and generate a certificate using the information of the CSR.
+// root_key and issuer_name are the info of the certificate signing authority.
+int gen_cert_from_CSR(X509_REQ *CSR, char *cert_filename, EVP_PKEY *root_key, X509_NAME *issuer_name);
 
 #endif

@@ -93,15 +93,42 @@ EVP_PKEY *read_key(char *filename)
     return key;
 }
 
+// Create a subject name to put in the certificate.
+// TODO for the moment we can only add the Common Name (mandatory), but typically this can include
+// more information on the user (optionally).
+// No need to allocate X509_NAME (with X509_NAME_new), but after this function
+// you need to free the key with X509_NAME_free (only in case of success).
+// Returns NULL if didn't work.
+X509_NAME *make_subject_name(const unsigned char *user_CN)
+{
+    X509_NAME *subj_name = NULL;
+
+    subj_name = X509_NAME_new();
+    if (subj_name == NULL)
+    {
+        fprintf(stderr, "Allocation of X509_NAME failed.\n");
+        return NULL;
+    }
+
+    // add Common Name
+    if (X509_NAME_add_entry_by_txt(subj_name, "CN", MBSTRING_ASC, user_CN, -1, -1, 0) == 0)
+    {
+        fprintf(stderr, "Couldn't add CN.\n");
+        X509_NAME_free(subj_name);
+        return NULL;
+    }
+
+    return subj_name;
+}
+
 // Generate a TLS certificate, using the key given in parameter.
-// user_key/user_CN are the key/CN of the entity of the certificate.
-// root_key/issuer_CN are the key/CN of the entity signing the certificate (CA).
+// user_key/user_name are the key/information of the entity of the certificate.
+// root_key/issuer_name are the key/information of the entity signing the certificate (CA).
+// User and Issuer subject names can be created with make_subject_name().
 // For a self_signed certifiate, user and issuer are the same entity.
-int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsigned char *user_CN, const unsigned char *issuer_CN)
+int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name)
 {
     X509 *cert = NULL;
-    X509_NAME *user_name = NULL;
-    X509_NAME *issuer_name = NULL;
     ASN1_INTEGER *serialnb = NULL;
     ASN1_TIME *notBefore = NULL;
     ASN1_TIME *notAfter = NULL;
@@ -118,19 +145,6 @@ int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsig
     }
 
     // set issuer and subject name
-    user_name = X509_NAME_new();
-    if (user_name == NULL)
-    {
-        fprintf(stderr, "Allocation of X509_NAME failed.\n");
-        ret = 1;
-        goto end;
-    }
-    if (X509_NAME_add_entry_by_txt(user_name, "CN", MBSTRING_ASC, user_CN, -1, -1, 0) == 0)
-    {
-        fprintf(stderr, "Couldn't create CN.\n");
-        ret = 1;
-        goto end;
-    }
     if (X509_set_subject_name(cert, user_name) == 0)
     {
         fprintf(stderr, "Couldn't set subject name.\n");
@@ -138,19 +152,6 @@ int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, const unsig
         goto end;
     }
 
-    issuer_name = X509_NAME_new();
-    if (issuer_name == NULL)
-    {
-        fprintf(stderr, "Allocation of X509_NAME failed.\n");
-        ret = 1;
-        goto end;
-    }
-    if (X509_NAME_add_entry_by_txt(issuer_name, "CN", MBSTRING_ASC, issuer_CN, -1, -1, 0) == 0)
-    {
-        fprintf(stderr, "Couldn't create CN.\n");
-        ret = 1;
-        goto end;
-    }
     if (X509_set_issuer_name(cert, issuer_name) == 0)
     {
         fprintf(stderr, "Couldn't set issuer name.\n");
@@ -238,8 +239,6 @@ end:
     ASN1_TIME_free(notBefore);
     ASN1_TIME_free(notAfter);
     ASN1_INTEGER_free(serialnb);
-    X509_NAME_free(user_name);
-    X509_NAME_free(issuer_name);
     X509_free(cert);
 
     fclose(fd);
@@ -247,6 +246,7 @@ end:
 }
 
 // Generate a certificate signing request and write it in file given in parameter.
+// Provide the key used to sign the CSR and the Common Name.
 int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
 {
     X509_REQ *CSR = NULL;
@@ -271,7 +271,7 @@ int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
     }
 
     // set CN
-    subject_name = X509_NAME_new(); // TODO le remplir
+    subject_name = X509_NAME_new();
     if (subject_name == NULL)
     {
         fprintf(stderr, "Allocation of X509_NAME failed.\n");
@@ -323,5 +323,99 @@ end:
     X509_REQ_free(CSR);
 
     fclose(fd);
+    return ret;
+}
+
+// Read a Certificate Signing Request file.
+// No need to allocate X509_REQ (with X509_REQ_new), but after this function
+// you need to free the CSR with X509_REQ_free (only in case of success).
+// Returns NULL if the CSR couldn't be read.
+X509_REQ *read_CSR(char *filename)
+{
+    X509_REQ *CSR = NULL;
+    FILE *fd = NULL;
+
+    fd = fopen(filename, "r");
+    if (fd == 0)
+    {
+        perror("Couldn't open file");
+        return NULL;
+    }
+
+    CSR = X509_REQ_new();
+    if (CSR == NULL)
+    {
+        fprintf(stderr, "Allocation of X509_REQ failed.\n");
+        fclose(fd);
+        return NULL;
+    }
+
+    if (PEM_read_X509_REQ(fd, &CSR, NULL, NULL) == NULL)
+    {
+        fprintf(stderr, "Couldn't read key %s\n.", filename);
+        X509_REQ_free(CSR);
+        fclose(fd);
+        return NULL;
+    }
+
+    fclose(fd);
+    return CSR;
+}
+
+// Takes in parameter a CSR, and generate a certificate using the information of the CSR.
+// root_key and issuer_name are the info of the certificate signing authority.
+int gen_cert_from_CSR(X509_REQ *CSR, char *cert_filename, EVP_PKEY *root_key, X509_NAME *issuer_name)
+{
+    EVP_PKEY *pub_key = NULL;
+    X509_NAME *subj_name = NULL;
+    int ret = 0;
+
+    pub_key = X509_REQ_get_pubkey(CSR);
+    if (pub_key == NULL)
+    {
+        fprintf(stderr, "Couldn't extract public key from CSR.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // (note: X509_REQ_check_private_key() verifies if the public key in the CSR
+    // matches with a given private key)
+
+    // Verify the signature of the certificate.
+    // If the signature is incorrect, we don't generate a certificate.
+    int res = X509_REQ_verify(CSR, pub_key);
+    if (res == 0)
+    {
+        fprintf(stderr, "Incorrect CSR signature.\n");
+        ret = 1;
+        goto end;
+    }
+    else if (res < 0)
+    {
+        fprintf(stderr, "Invalid CSR signature or malformed CSR.\n");
+        ret = 1;
+        goto end;
+    }
+
+    // Now that we have confirmed that the CSR is correctly signed, we can proceed to generate the certificate.
+
+    subj_name = X509_REQ_get_subject_name(CSR);
+    if (subj_name == NULL)
+    {
+        fprintf(stderr, "Coudln't extract subject name from CSR.\n");
+        ret = 1;
+        goto end;
+    }
+
+    if (gen_cert(cert_filename, pub_key, root_key, subj_name, issuer_name) == 1)
+    {
+        fprintf(stderr, "Certificate Generation failed.\n");
+        ret = 1;
+        goto end;
+    }
+
+end:
+    X509_NAME_free(subj_name);
+    EVP_PKEY_free(pub_key);
     return ret;
 }
