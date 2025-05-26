@@ -6,3 +6,4 @@ client/client
 .vscode
 a.out
 tools/test_credentials
+CA/CA

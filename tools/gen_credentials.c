@@ -1,6 +1,8 @@
 #include "gen_credentials.h"
 
-// Write key pair in the file given in parameter (creating the file if necessary)
+// Write key pair in the file given in parameter (creating the file if necessary).
+// If a file of the same name already exists, the contents will be overwritten.
+// And if the key couldn't be written, the file will be deleted.
 int write_key(EVP_PKEY *key, char *filename)
 {
     /* instead of using encoder we could use openssl PEM library PEM_write_PKCS8PrivateKey()*/
@@ -28,6 +30,14 @@ int write_key(EVP_PKEY *key, char *filename)
         fprintf(stderr, "Couldn't write key in %s.\n", filename);
         fclose(fd);
         OSSL_ENCODER_CTX_free(ectx);
+
+        // if the key couldn't be generate, let's delete the file we just created.
+        if (remove(filename) != 0)
+        {
+            perror("Couldn't delete file");
+            return 1;
+        }
+
         return 1;
     }
 

@@ -9,10 +9,9 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 
-// Write key pair in the file given in parameter (creating the file if necessary)
-int write_key(EVP_PKEY *key, char *filename);
-
-// Generate a 256 bytes RSA key, and write it in the file given in parameter.
+// Write key pair in the file given in parameter (creating the file if necessary).
+// If a file of the same name already exists, the contents will be overwritten.
+// And if the key couldn't be written, the file will be deleted.
 int gen_keyfile(char *filename);
 
 // Read the key in the file given in parameter.
@@ -29,6 +28,8 @@ EVP_PKEY *read_key(char *filename);
 // Returns NULL if didn't work.
 X509_NAME *make_subject_name(const unsigned char *user_CN);
 
+// TODO delete file if generation failed
+// TODO provide option to not overwrite existing files ?
 // Generate a TLS certificate, using the key given in parameter.
 // user_key/user_name are the key/information of the entity of the certificate.
 // root_key/issuer_name are the key/information of the entity signing the certificate (CA).
@@ -36,6 +37,7 @@ X509_NAME *make_subject_name(const unsigned char *user_CN);
 // For a self_signed certifiate, user and issuer are the same entity.
 int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name);
 
+// TODO delete file if generation failed
 // Generate a certificate signing request and write it in file given in parameter.
 // Provide the key used to sign the CSR and the Common Name.
 int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename);
