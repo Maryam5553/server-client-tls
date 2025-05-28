@@ -7,3 +7,4 @@ client/client
 a.out
 tools/test_credentials
 CA/CA
+tools/test_connect_to_CA

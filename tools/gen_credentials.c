@@ -1,8 +1,5 @@
 #include "gen_credentials.h"
 
-// Write key pair in the file given in parameter (creating the file if necessary).
-// If a file of the same name already exists, the contents will be overwritten.
-// And if the key couldn't be written, the file will be deleted.
 int write_key(EVP_PKEY *key, char *filename)
 {
     /* instead of using encoder we could use openssl PEM library PEM_write_PKCS8PrivateKey()*/
@@ -31,7 +28,7 @@ int write_key(EVP_PKEY *key, char *filename)
         fclose(fd);
         OSSL_ENCODER_CTX_free(ectx);
 
-        // if the key couldn't be generate, let's delete the file we just created.
+        // if writing fails, let's delete the empty file.
         if (remove(filename) != 0)
         {
             perror("Couldn't delete file");
@@ -46,7 +43,6 @@ int write_key(EVP_PKEY *key, char *filename)
     return 0;
 }
 
-// Generate a 256 bytes RSA key, and write it in the file given in parameter.
 int gen_keyfile(char *filename)
 {
     EVP_PKEY *key = EVP_RSA_gen(256 * 8);
@@ -67,10 +63,6 @@ int gen_keyfile(char *filename)
     return 0;
 }
 
-// Read the key in the file given in parameter.
-// No need to allocate EVP_PKEY (with EVP_PKEY_new), but after this function
-// you need to free the key with EVP_PKEY_free (only in case of success).
-// Returns NULL if didn't work.
 EVP_PKEY *read_key(char *filename)
 {
     FILE *fd = NULL;
@@ -83,18 +75,10 @@ EVP_PKEY *read_key(char *filename)
         return NULL;
     }
 
-    key = EVP_PKEY_new();
+    key = PEM_read_PrivateKey(fd, NULL, NULL, NULL);
     if (key == NULL)
     {
-        fprintf(stderr, "Allocation of EVP_PKEY failed.\n");
-        fclose(fd);
-        return NULL;
-    }
-
-    if (PEM_read_PrivateKey(fd, &key, NULL, NULL) == NULL)
-    {
         fprintf(stderr, "Couldn't read key %s\n.", filename);
-        EVP_PKEY_free(key);
         fclose(fd);
         return NULL;
     }
@@ -103,12 +87,9 @@ EVP_PKEY *read_key(char *filename)
     return key;
 }
 
-// Create a subject name to put in the certificate.
 // TODO for the moment we can only add the Common Name (mandatory), but typically this can include
 // more information on the user (optionally).
-// No need to allocate X509_NAME (with X509_NAME_new), but after this function
-// you need to free the key with X509_NAME_free (only in case of success).
-// Returns NULL if didn't work.
+
 X509_NAME *make_subject_name(const unsigned char *user_CN)
 {
     X509_NAME *subj_name = NULL;
@@ -131,12 +112,37 @@ X509_NAME *make_subject_name(const unsigned char *user_CN)
     return subj_name;
 }
 
-// Generate a TLS certificate, using the key given in parameter.
-// user_key/user_name are the key/information of the entity of the certificate.
-// root_key/issuer_name are the key/information of the entity signing the certificate (CA).
-// User and Issuer subject names can be created with make_subject_name().
-// For a self_signed certifiate, user and issuer are the same entity.
-int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name)
+int write_cert(X509 *cert, char *filename)
+{
+    FILE *fd;
+    int ret = 0;
+
+    fd = fopen(filename, "w");
+    if (fd == 0)
+    {
+        perror("Couldn't open file");
+        return 1;
+    }
+
+    if (!PEM_write_X509(fd, cert))
+    {
+        fprintf(stderr, "Couldn't write certificate in file %s.\n", filename);
+        ret = 1;
+
+        // if writing fails, let's delete the empty file.
+        if (remove(filename) != 0)
+        {
+            perror("Couldn't delete file");
+        }
+        goto end;
+    }
+
+end:
+    fclose(fd);
+    return ret;
+}
+
+X509 *gen_cert(EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name)
 {
     X509 *cert = NULL;
     ASN1_INTEGER *serialnb = NULL;
@@ -150,8 +156,7 @@ int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *
         char buf[256];
         ERR_error_string_n(ERR_get_error(), buf, sizeof(buf)); // check openssl error queue
         fprintf(stderr, "Couldn't create certificate: %s.\n", buf);
-        ret = 1;
-        goto end;
+        return NULL;
     }
 
     // set issuer and subject name
@@ -229,47 +234,73 @@ int gen_cert(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *
         goto end;
     }
 
-    // WRITE CERTIFICATE
-
-    FILE *fd = fopen(filename, "w");
-    if (fd == 0)
-    {
-        perror("Couldn't open file");
-        return 1;
-    }
-
-    if (!PEM_write_X509(fd, cert))
-    {
-        fprintf(stderr, "Couldn't write certificate in file %s.\n", filename);
-        X509_free(cert);
-        return 1;
-    }
-
 end:
     ASN1_TIME_free(notBefore);
     ASN1_TIME_free(notAfter);
     ASN1_INTEGER_free(serialnb);
-    X509_free(cert);
-
-    fclose(fd);
-    return ret;
+    if (ret == 1)
+    {
+        X509_free(cert);
+        return NULL;
+    }
+    return cert;
 }
 
-// Generate a certificate signing request and write it in file given in parameter.
-// Provide the key used to sign the CSR and the Common Name.
-int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
+int gen_cert_file(char *filename, EVP_PKEY *user_key, EVP_PKEY *root_key, X509_NAME *user_name, X509_NAME *issuer_name)
+{
+    X509 *cert = gen_cert(user_key, root_key, user_name, issuer_name);
+    if (cert == NULL)
+    {
+        fprintf(stderr, "Error generating certificate %s", filename);
+        return 1;
+    }
+
+    if (write_cert(cert, filename) == 1)
+    {
+        fprintf(stderr, "Error writing certificate %s", filename);
+        X509_free(cert);
+        return 1;
+    }
+
+    X509_free(cert);
+    return 0;
+}
+
+X509 *read_cert(char *filename)
+{
+    FILE *fd = NULL;
+    X509 *cert = NULL;
+
+    fd = fopen(filename, "r");
+    if (fd == 0)
+    {
+        perror("Couldn't open file");
+        return NULL;
+    }
+
+    cert = PEM_read_X509(fd, NULL, NULL, NULL);
+    if (cert == NULL)
+    {
+        fprintf(stderr, "Couldn't read cert %s\n.", filename);
+        fclose(fd);
+        return NULL;
+    }
+
+    fclose(fd);
+    return cert;
+}
+
+X509_REQ *gen_CSR(EVP_PKEY *key, const unsigned char *CN)
 {
     X509_REQ *CSR = NULL;
     X509_NAME *subject_name = NULL;
-    FILE *fd = NULL;
     int ret = 0;
 
     CSR = X509_REQ_new();
     if (CSR == NULL)
     {
         fprintf(stderr, "Allocation of X509_REQ failed.\n");
-        ret = 1;
-        goto end;
+        return NULL;
     }
 
     // set public key
@@ -311,35 +342,66 @@ int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
         goto end;
     }
 
-    // WRITE CSR
+end:
+    X509_NAME_free(subject_name);
+    if (ret == 1)
+    {
+        X509_REQ_free(CSR);
+        return NULL;
+    }
+    return CSR;
+}
+
+int write_CSR(X509_REQ *CSR, char *filename)
+{
+    FILE *fd;
+    int ret = 0;
 
     fd = fopen(filename, "w");
     if (fd == 0)
     {
         perror("Couldn't open file");
-        ret = 1;
-        goto end;
+        return 1;
     }
 
     if (!PEM_write_X509_REQ(fd, CSR))
     {
         fprintf(stderr, "Couldn't write CSR in file %s.\n", filename);
         ret = 1;
+
+        // if writing fails, let's delete the empty file.
+        if (remove(filename) != 0)
+        {
+            perror("Couldn't delete file");
+        }
         goto end;
     }
 
 end:
-    X509_NAME_free(subject_name);
-    X509_REQ_free(CSR);
-
     fclose(fd);
     return ret;
 }
 
-// Read a Certificate Signing Request file.
-// No need to allocate X509_REQ (with X509_REQ_new), but after this function
-// you need to free the CSR with X509_REQ_free (only in case of success).
-// Returns NULL if the CSR couldn't be read.
+int gen_CSR_file(EVP_PKEY *key, const unsigned char *CN, char *filename)
+{
+    X509_REQ *CSR = gen_CSR(key, CN);
+    if (CSR == NULL)
+    {
+        fprintf(stderr, "Error generating CSR %s", filename);
+        return 1;
+    }
+
+    if (write_CSR(CSR, filename) == 1)
+    {
+        fprintf(stderr, "Error writing CSR in file %s", filename);
+        X509_REQ_free(CSR);
+        return 1;
+    }
+
+    X509_REQ_free(CSR);
+    return 0;
+}
+
 X509_REQ *read_CSR(char *filename)
 {
     X509_REQ *CSR = NULL;
@@ -352,18 +414,10 @@ X509_REQ *read_CSR(char *filename)
         return NULL;
     }
 
-    CSR = X509_REQ_new();
+    CSR = PEM_read_X509_REQ(fd, NULL, NULL, NULL);
     if (CSR == NULL)
     {
-        fprintf(stderr, "Allocation of X509_REQ failed.\n");
-        fclose(fd);
-        return NULL;
-    }
-
-    if (PEM_read_X509_REQ(fd, &CSR, NULL, NULL) == NULL)
-    {
         fprintf(stderr, "Couldn't read key %s\n.", filename);
-        X509_REQ_free(CSR);
         fclose(fd);
         return NULL;
     }
@@ -372,19 +426,16 @@ X509_REQ *read_CSR(char *filename)
     return CSR;
 }
 
-// Takes in parameter a CSR, and generate a certificate using the information of the CSR.
-// root_key and issuer_name are the info of the certificate signing authority.
-int gen_cert_from_CSR(X509_REQ *CSR, char *cert_filename, EVP_PKEY *root_key, X509_NAME *issuer_name)
+X509 *gen_cert_from_CSR(X509_REQ *CSR, EVP_PKEY *root_key, X509_NAME *issuer_name)
 {
     EVP_PKEY *pub_key = NULL;
     X509_NAME *subj_name = NULL;
-    int ret = 0;
+    X509 *cert = NULL;
 
     pub_key = X509_REQ_get_pubkey(CSR);
     if (pub_key == NULL)
     {
         fprintf(stderr, "Couldn't extract public key from CSR.\n");
-        ret = 1;
         goto end;
     }
 
@@ -397,35 +448,73 @@ int gen_cert_from_CSR(X509_REQ *CSR, char *cert_filename, EVP_PKEY *root_key, X5
     if (res == 0)
     {
         fprintf(stderr, "Incorrect CSR signature.\n");
-        ret = 1;
         goto end;
     }
     else if (res < 0)
     {
         fprintf(stderr, "Invalid CSR signature or malformed CSR.\n");
-        ret = 1;
         goto end;
     }
 
     // Now that we have confirmed that the CSR is correctly signed, we can proceed to generate the certificate.
 
-    subj_name = X509_REQ_get_subject_name(CSR);
+    subj_name = X509_REQ_get_subject_name(CSR); // don't free subj_name!
     if (subj_name == NULL)
     {
         fprintf(stderr, "Coudln't extract subject name from CSR.\n");
+        goto end;
+    }
+
+    cert = gen_cert(pub_key, root_key, subj_name, issuer_name);
+    if (cert == NULL)
+    {
+        fprintf(stderr, "Certificate Generation failed.\n");
+        goto end;
+    }
+
+end:
+    EVP_PKEY_free(pub_key);
+    return cert;
+}
+
+int encode_CSR_to_buf(X509_REQ *CSR, char *buf)
+{
+    BIO *bio = NULL;
+    int ret = 0;
+
+    bio = BIO_new(BIO_s_mem());
+    if (bio == NULL)
+    {
+        fprintf(stderr, "Error BIO allocation.\n");
+        return 1;
+    }
+
+    // write CSR to bio
+    if (!PEM_write_bio_X509_REQ(bio, CSR))
+    {
+        fprintf(stderr, "Error writing CSR to bio.\n");
         ret = 1;
         goto end;
     }
 
-    if (gen_cert(cert_filename, pub_key, root_key, subj_name, issuer_name) == 1)
+    // use bio to convert to a buffer
+    size_t pem_len = BIO_pending(bio);
+    // printf("buffer size needed for CSR: %ld\n",pem_len);
+    int res = BIO_read(bio, buf, pem_len);
+    if (res == -2)
     {
-        fprintf(stderr, "Certificate Generation failed.\n");
+        fprintf(stderr, "WRONG BIO.\n");
+        ret = 1;
+        goto end;
+    }
+    else if (res < 0)
+    {
+        fprintf(stderr, "Couldn't write CSR from bio to buffer.\n");
         ret = 1;
         goto end;
     }
 
 end:
-    X509_NAME_free(subj_name);
-    EVP_PKEY_free(pub_key);
+    BIO_free(bio);
     return ret;
 }
