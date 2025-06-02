@@ -6,16 +6,19 @@ TOOL_DIR = ../tools/
 
 all: CA
 
-CA: CA.o $(TOOL_DIR)file_exists.o $(TOOL_DIR)gen_credentials.o
+CA: CA.o $(TOOL_DIR)file_exists.o $(TOOL_DIR)gen_credentials.o $(TOOL_DIR)serialization.o
 	$(CC) -o $@ $^ $(SSLFLAGS)
 
-CA.o: CA.c $(TOOL_DIR)file_exists.h $(TOOL_DIR)gen_credentials.h
+CA.o: CA.c $(TOOL_DIR)file_exists.h $(TOOL_DIR)gen_credentials.h $(TOOL_DIR)serialization.h
 	$(CC) -c $^ $(SSLFLAGS)
 
-file_exists.o: $(TOOL_DIR)file_exists.c $(TOOL_DIR)file_exists.h
+file_exists.o: $(TOOL_DIR)file_exists.c $(TOOL_DIR)file_exists.h 
 	$(CC) -c $^ $(SSLFLAGS)
 
 gen_credentials.o:$(TOOL_DIR)gen_credentials.c $(TOOL_DIR)gen_credentials.h
+	$(CC) -c $^ $(SSLFLAGS)
+
+serialization.o: $(TOOL_DIR)serialization.c $(TOOL_DIR)serialization.h
 	$(CC) -c $^ $(SSLFLAGS)
 
 clean:

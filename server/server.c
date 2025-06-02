@@ -7,7 +7,7 @@
 #define SERV_CERT_FILENAME "serv_cert.pem"
 #define SERV_KEY_FILENAME "serv_key.pem"
 #define SERV_PORT "8080"
-#define CA_FILE "CA_cert.pem"
+#define CA_CERT "CA_cert.pem"
 
 // create ctx object and set options
 int init_ctx(SSL_CTX **ctx)
@@ -55,9 +55,9 @@ int load_priv_files(SSL_CTX **ctx)
     SSL_CTX_set_verify(*ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
     // root CA certificate to accept client certificate
-    if (SSL_CTX_load_verify_file(*ctx, CA_FILE) == 0)
+    if (SSL_CTX_load_verify_file(*ctx, CA_CERT) == 0)
     {
-        printf("Failed to load CA file from \"%s\"", CA_FILE);
+        printf("Failed to load CA file from \"%s\"", CA_CERT);
         handle_err("", ctx);
         return 1;
     }

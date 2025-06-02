@@ -91,7 +91,4 @@ X509_REQ *read_CSR(char *filename);
    root_key and issuer_name are the info of the certificate signing authority. */
 X509 *gen_cert_from_CSR(X509_REQ *CSR, EVP_PKEY *root_key, X509_NAME *issuer_name);
 
-/* Encode CSR to a buffer in PEM format. */
-int encode_CSR_to_buf(X509_REQ *CSR, char *buf);
-
 #endif

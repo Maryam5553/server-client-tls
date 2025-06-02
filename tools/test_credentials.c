@@ -137,17 +137,7 @@ int main()
     }
 
     printf("TLS certificate generated from CSR.\n");
-
-    char buf[2048] = {0};
-    if (encode_CSR_to_buf(CSR, buf) == 1)
-    {
-        fprintf(stderr, "encode CSR to buf didn't work\n");
-        ret = 1;
-        goto end;
-    }
-
-    printf("CSR was sucessfully read to buffer:\n%s", buf);
-
+    
 end:
     EVP_PKEY_free(key);
     X509_NAME_free(user_name);
