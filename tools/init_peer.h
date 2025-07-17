@@ -3,6 +3,7 @@
 
 #include "gen_credentials.h"
 #include "request_TLS_certificate.h"
+#include "file_exists.h"
 
 typedef struct
 {

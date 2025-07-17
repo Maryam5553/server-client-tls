@@ -12,6 +12,10 @@ int init_peer(peer_info *peer_info)
         }
         printf("%s generated.\n", peer_info->pkey_filename);
     }
+    else
+    {
+        printf("%s already exists.\n", peer_info->pkey_filename);
+    }
 
     if (!file_exists(peer_info->TLS_cert_filename))
     {
@@ -33,7 +37,11 @@ int init_peer(peer_info *peer_info)
 
         printf("TLS certificate and root certificate written in %s and %s.\n", peer_info->TLS_cert_filename, peer_info->root_cert_filename);
         EVP_PKEY_free(priv_key);
+    } else{
+        printf("%s already exists.\n",peer_info->TLS_cert_filename);
     }
 
+
     printf("Done initializing peer.\n");
+    return 0;
 }
