@@ -6,6 +6,8 @@
 #define ROOT_CERT_NAME "test_recv_root_cert.pem"
 #define CERT_NAME "test_recv_cert.pem"
 
+/* Please run CA program before running this one (CA needs to be listening to incoming connexions) */
+
 int main()
 {
     X509 *root_cert = NULL;

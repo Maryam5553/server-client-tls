@@ -241,8 +241,6 @@ end:
     return ret;
 }
 
-// TODO test CA and client communication protocole between CA and test_connect_to_CA
-
 int main()
 {
     int sockfd;
