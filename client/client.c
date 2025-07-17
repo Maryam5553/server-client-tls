@@ -1,21 +1,5 @@
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/bio.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
+#include "client.h"
 
-#include "../tools/ssl_err.h"
-
-#define CLIENT_CERT_FILENAME "client_cert.pem"
-#define CLIENT_KEY_FILENAME "client_key.pem"
-#define SERV_PORT "8080"
-#define SERV_HOSTNAME "XXX"
-#define CA_CERT "CA_cert.pem"
-
-// create ctx object and set options
 int init_ctx(SSL_CTX **ctx)
 {
     // create context
@@ -36,7 +20,6 @@ int init_ctx(SSL_CTX **ctx)
     return 0;
 }
 
-// load client and CA certificates
 int load_priv_files(SSL_CTX **ctx)
 {
     // load client certificate chain
@@ -59,16 +42,15 @@ int load_priv_files(SSL_CTX **ctx)
     SSL_CTX_set_verify(*ctx, SSL_VERIFY_PEER, NULL);
 
     // root CA certificate accepted for the server
-    if (SSL_CTX_load_verify_file(*ctx, CA_CERT) == 0)
+    if (SSL_CTX_load_verify_file(*ctx, CLIENT_ROOT_CERT) == 0)
     {
-        printf("Failed to load CA file from \"%s\"", CA_CERT);
+        printf("Failed to load CA file from \"%s\"", CLIENT_ROOT_CERT);
         handle_err("", ctx);
         return 1;
     }
     return 0;
 }
 
-// connect to server and perform TLS handshake
 int connect_to_server(SSL_CTX **ctx, SSL **ssl, int *sock)
 {
     // create SSL object
@@ -156,7 +138,6 @@ int connect_to_server(SSL_CTX **ctx, SSL **ssl, int *sock)
     return 0;
 }
 
-// write data on the open connection
 int send_data(SSL **ssl, const char *data)
 {
     size_t nb_written;
@@ -190,7 +171,6 @@ int read_data(SSL **ssl)
     return 0;
 }
 
-// close connection with server
 int shutdown_con(SSL_CTX **ctx, SSL **ssl)
 {
     int ret = SSL_shutdown(*ssl);
@@ -212,53 +192,4 @@ int shutdown_con(SSL_CTX **ctx, SSL **ssl)
         return 1;
     }
     return 1;
-}
-
-int main()
-{
-    SSL_CTX *ctx = NULL;
-    SSL *ssl = NULL;
-    int sock = -1;
-    int res;
-
-    // init
-    if (init_ctx(&ctx) == 1)
-    {
-        res = EXIT_FAILURE;
-        goto end;
-    }
-
-    if (load_priv_files(&ctx) == 1)
-    {
-        res = EXIT_FAILURE;
-        goto end;
-    }
-
-    // connection
-    if (connect_to_server(&ctx, &ssl, &sock) == 1)
-    {
-        res = EXIT_FAILURE;
-        goto end;
-    }
-
-    // send and receive data
-    const char *data = "hello";
-    if (send_data(&ssl, data) == 1)
-    {
-        res = shutdown_con(&ctx, &ssl);
-        goto end;
-    }
-    if (read_data(&ssl) == 1)
-    {
-        res = shutdown_con(&ctx, &ssl);
-        goto end;
-    }
-
-    res = shutdown_con(&ctx, &ssl);
-
-end:
-    SSL_free(ssl);
-    if (res == 0)
-        SSL_CTX_free(ctx);
-    return res;
 }

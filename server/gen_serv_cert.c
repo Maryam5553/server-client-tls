@@ -1,1 +1,0 @@
-// TODO SERV_HOSTNAME = "XXX" mais alors faudra le changer aussi dans client.c

@@ -1,8 +1,8 @@
 *.pem
 *.o
 *.gch
-server/server
-client/client
+server/main
+client/main
 .vscode
 a.out
 tools/test_credentials

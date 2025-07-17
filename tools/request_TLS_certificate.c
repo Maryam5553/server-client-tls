@@ -52,6 +52,6 @@ end:
     X509_free(cert);
     X509_REQ_free(CSR);
     close(sockfd);
-    printf("Connexion closed.\n");
+    printf("Connexion with CA closed.\n");
     return ret;
 }

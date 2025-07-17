@@ -1,15 +1,5 @@
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/bio.h>
-#include <stdio.h>
-#include "../tools/ssl_err.h"
+#include "server.h"
 
-#define SERV_CERT_FILENAME "serv_cert.pem"
-#define SERV_KEY_FILENAME "serv_key.pem"
-#define SERV_PORT "8080"
-#define CA_CERT "CA_cert.pem"
-
-// create ctx object and set options
 int init_ctx(SSL_CTX **ctx)
 {
     // create context
@@ -32,7 +22,6 @@ int init_ctx(SSL_CTX **ctx)
     return 0;
 }
 
-// load server and CA certificates
 int load_priv_files(SSL_CTX **ctx)
 {
     // load server certificate chain
@@ -55,16 +44,15 @@ int load_priv_files(SSL_CTX **ctx)
     SSL_CTX_set_verify(*ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
     // root CA certificate to accept client certificate
-    if (SSL_CTX_load_verify_file(*ctx, CA_CERT) == 0)
+    if (SSL_CTX_load_verify_file(*ctx, SERV_ROOT_CERT) == 0)
     {
-        printf("Failed to load CA file from \"%s\"", CA_CERT);
+        printf("Failed to load CA file from \"%s\"", SERV_ROOT_CERT);
         handle_err("", ctx);
         return 1;
     }
     return 0;
 }
 
-// creates BIO object and inits a socket
 int init_listen(SSL_CTX **ctx, BIO **bio)
 {
     // creates bio object needed to create socket. records the intended port without creating the socket
@@ -89,7 +77,6 @@ int init_listen(SSL_CTX **ctx, BIO **bio)
     return 0;
 }
 
-// print errors and free ressources allocated to client
 void handle_client_error(char *err_msg, SSL **ssl)
 {
     ERR_print_errors_fp(stderr);
@@ -97,7 +84,6 @@ void handle_client_error(char *err_msg, SSL **ssl)
     SSL_free(*ssl); // this also frees the client_bio
 }
 
-// accept incoming connection and try SSL handshake
 int handle_client_connection(SSL_CTX **ctx, BIO **client_bio, SSL **ssl)
 {
     // associate connexion to SSL handle
@@ -121,7 +107,6 @@ int handle_client_connection(SSL_CTX **ctx, BIO **client_bio, SSL **ssl)
     return 0;
 }
 
-// operations to perform when client is connected
 int treat_client(SSL **ssl)
 {
     while (1)
@@ -168,55 +153,4 @@ int treat_client(SSL **ssl)
         }
     }
     return 0;
-}
-
-int main()
-{
-    SSL_CTX *ctx = NULL;
-    /* BIO used to accept incoming connections.
-     when a  new connection is established, a new BIO socket is created for
-     the client (client_bio) and appended to this BIO. We'll then pop the
-     client BIO so that the accept_bio can await new connections. */
-    BIO *accept_bio = NULL;
-
-    if (init_ctx(&ctx) == 1)
-        return EXIT_FAILURE;
-
-    if (load_priv_files(&ctx) == 1)
-        return EXIT_FAILURE;
-
-    if (init_listen(&ctx, &accept_bio) == 1)
-        return EXIT_FAILURE;
-
-    printf("Server listening on port %s...\n", SERV_PORT);
-
-    // Client loop
-    while (1)
-    {
-        BIO *client_bio = NULL;
-        SSL *ssl = NULL;
-
-        ERR_clear_error();
-        if (BIO_do_accept(accept_bio) <= 0)
-        {
-            // client went away before we accepted the connection
-            continue;
-        }
-        printf("New client\n");
-
-        client_bio = BIO_pop(accept_bio);
-        if (handle_client_connection(&ctx, &client_bio, &ssl) == 1)
-            continue;
-
-        printf("Client connected securely.\n");
-
-        if (treat_client(&ssl) == 1)
-            continue;
-
-        SSL_free(ssl);
-    }
-
-    BIO_free(accept_bio);
-    SSL_CTX_free(ctx);
-    return EXIT_SUCCESS;
 }
