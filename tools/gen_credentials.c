@@ -456,6 +456,8 @@ X509 *gen_cert_from_CSR(X509_REQ *CSR, EVP_PKEY *root_key, X509_NAME *issuer_nam
         goto end;
     }
 
+    printf("checked CSR: CSR signature is valid.\n");
+
     // Now that we have confirmed that the CSR is correctly signed, we can proceed to generate the certificate.
 
     subj_name = X509_REQ_get_subject_name(CSR); // don't free subj_name!

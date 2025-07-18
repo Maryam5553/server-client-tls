@@ -16,7 +16,7 @@
 #define CLIENT_KEY_FILENAME "client_key.pem"
 #define CLIENT_CN "client"
 #define SERV_PORT "8080"
-#define SERV_HOSTNAME "XXX"
+#define SERV_HOSTNAME "server"
 #define CLIENT_ROOT_CERT "CA_cert.pem"
 
 // create ctx object and set options

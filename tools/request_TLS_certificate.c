@@ -24,6 +24,8 @@ int request_TLS_certificate(EVP_PKEY *private_key, const unsigned char *CN, char
         goto end;
     }
 
+    printf("Generated CSR.\n");
+
     // function that implements the CSR protocol.
     if (send_CSR_wait_cert(sockfd, CSR, &root_cert, &cert) == 1)
     {
