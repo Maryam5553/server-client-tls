@@ -14,7 +14,7 @@
 #define CA_CERT "CA_cert.pem"
 #define CA_KEY "CA_key.pem"
 #define CA_NAME "CA"
-#define CA_PORT 8082
+#define CA_PORT 8080
 #define CA_IP "127.0.0.1"
 
 // Connects to the CA server, using the values CA_PORT and CA_IP defined in connect_to_CA.h
