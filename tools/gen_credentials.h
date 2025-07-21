@@ -9,6 +9,7 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
+#include <sys/stat.h>
 
 /* Write key pair in the file given in parameter (creating the file if necessary).
    If a file of the same name already exists, the contents will be overwritten.

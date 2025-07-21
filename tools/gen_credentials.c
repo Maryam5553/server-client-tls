@@ -38,6 +38,15 @@ int write_key(EVP_PKEY *key, char *filename)
         return 1;
     }
 
+    // read-only permission
+    if (chmod(filename, 0440) != 0)
+    {
+        fclose(fd);
+        OSSL_ENCODER_CTX_free(ectx);
+        perror("Couldn't change permissions of keyfile to read-only");
+        return 1;
+    }
+
     fclose(fd);
     OSSL_ENCODER_CTX_free(ectx);
     return 0;
