@@ -1,10 +1,11 @@
+.vscode
 *.pem
 *.o
 *.gch
 server/main
 client/main
-.vscode
+CA/CA
 a.out
 tools/test_credentials
-CA/CA
 tools/test_connect_to_CA
+tools/test_certificate_request

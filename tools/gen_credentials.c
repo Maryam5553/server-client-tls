@@ -39,7 +39,7 @@ int write_key(EVP_PKEY *key, char *filename)
     }
 
     // read-only permission
-    if (chmod(filename, 0440) != 0)
+    if (chmod(filename, 0400) != 0)
     {
         fclose(fd);
         OSSL_ENCODER_CTX_free(ectx);
