@@ -1,5 +1,5 @@
 #include "server.h"
-#include "../tools/init_peer.h"
+#include "../tools/setup_peer.h"
 
 int main()
 {
@@ -11,13 +11,15 @@ int main()
     BIO *accept_bio = NULL;
 
     // Generate private files
-    peer_info client_info = {SERV_KEY_FILENAME, SERV_CERT_FILENAME, SERV_ROOT_CERT, SERV_CN};
+    peer_info serv_info = {"server", SERV_KEY_FILENAME, SERV_CERT_FILENAME, SERV_ROOT_CERT, SERV_CN};
 
-    if (init_peer(&client_info) == 1)
+    printf("***** SERVER SETUP *****\n");
+    if (setup_peer(&serv_info) == 1)
     {
-        fprintf(stderr, "failed to generate client private files.");
+        fprintf(stderr, "failed to generate server private files.");
         return EXIT_FAILURE;
     }
+    printf("***** SETUP DONE *****\n\n");
 
     // init connexion
     if (init_ctx(&ctx) == 1)

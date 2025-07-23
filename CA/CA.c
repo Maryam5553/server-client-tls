@@ -10,11 +10,11 @@
 #define CA_CERT "CA_cert.pem"
 #define CA_KEY "CA_key.pem"
 #define CA_NAME "CA"
-#define CA_PORT 8082
+#define CA_PORT 8080
 #define BUF_SIZE_CA 1024
 
 // Generate CA root key and certificate (if didn't already exist).
-int init_CA(char *CA_root_cert, char *CA_root_key, char *CA_name)
+int CA_setup(char *CA_root_cert, char *CA_root_key, char *CA_name)
 {
     EVP_PKEY *key = NULL;
     X509_NAME *subject_name = NULL;
@@ -28,7 +28,11 @@ int init_CA(char *CA_root_cert, char *CA_root_key, char *CA_name)
             fprintf(stderr, "Couldn't generate keyfile %s.\n", CA_root_key);
             return 1;
         }
-        printf("Keyfile %s successfully generated.\n", CA_root_key);
+        printf("CA private key generated in file %s.\n", CA_root_key);
+    }
+    else
+    {
+        printf("CA private key %s already exists.\n", CA_root_key);
     }
 
     // if it doesn't exist, let's generate a self-signed certificate
@@ -50,7 +54,12 @@ int init_CA(char *CA_root_cert, char *CA_root_key, char *CA_name)
             fprintf(stderr, "Couldn't generate TLS certificate file %s.\n", CA_root_cert);
             return 1;
         }
-        printf("TLS certificate %s successfully generated.\n", CA_root_cert);
+        printf("CA generated self-signed certificate %s using private key %s.\n", CA_root_cert, CA_root_key);
+        // TODO print certificate
+    }
+    else
+    {
+        printf("CA root certificate %s already exists.\n", CA_root_cert);
     }
 
 end:
@@ -232,7 +241,7 @@ int treat_CSR_requests(int client_sockfd, EVP_PKEY *CA_key, X509 *CA_cert, X509_
         return 1;
         goto end;
     }
-    printf("Certificate sent to client!\n");
+    printf("TLS certificate sent to client!\n");
 
     printf("Done treating the CSR request.\n");
 end:
@@ -248,19 +257,19 @@ int main()
     X509 *root_cert;
     X509_NAME *CA_name; // never free this value, as it will be loaded with X509_get_subject_name.
 
-    if (init_CA(CA_CERT, CA_KEY, CA_NAME) == 1)
+    printf("***** CERTIFICATION AUTHORITY SETUP *****\n");
+    if (CA_setup(CA_CERT, CA_KEY, CA_NAME) == 1)
     {
-        fprintf(stderr, "Failure to initialize CA.\n");
+        fprintf(stderr, "Failure to setup CA.\n");
         return 1;
     }
-    printf("CA initialized.\n");
+    printf("***** SETUP DONE *****\n\n");
 
     if (load_CA_info(CA_KEY, CA_CERT, &root_key, &root_cert, &CA_name) == 1)
     {
         fprintf(stderr, "Failure to load CA info.\n");
         return 1;
     }
-    printf("root key and CA name loaded.\n");
 
     sockfd = launch_CA(CA_PORT);
     if (sockfd < 0)
@@ -268,7 +277,7 @@ int main()
         fprintf(stderr, "Failure to launch CA.\n");
         return 1;
     }
-    printf("CA now accepts incoming connexions.\n");
+    printf("CA is listening on port %d for incoming connexions...\n\n", CA_PORT);
 
     // incoming connexions
     while (1)
@@ -281,7 +290,7 @@ int main()
             perror("Incoming connexion failed");
             continue;
         }
-        printf("Incoming connexion accepted.\n");
+        printf("Client connected.\n");
 
         // treat client request to generate TLS certificates
         if (treat_CSR_requests(client_sockfd, root_key, root_cert, CA_name) == 1)
@@ -291,7 +300,7 @@ int main()
             continue;
         }
 
-        printf("End of communication with client.\n");
+        printf("Client disconnected.\n\n");
         close(client_sockfd);
     }
 

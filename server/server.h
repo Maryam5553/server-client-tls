@@ -9,7 +9,7 @@
 
 #define SERV_CERT_FILENAME "serv_cert.pem"
 #define SERV_KEY_FILENAME "serv_key.pem"
-#define SERV_PORT "8080"
+#define SERV_PORT "8081"
 #define SERV_ROOT_CERT "CA_cert.pem"
 #define SERV_CN "server"
 

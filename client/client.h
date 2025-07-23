@@ -15,7 +15,7 @@
 #define CLIENT_CERT_FILENAME "client_cert.pem"
 #define CLIENT_KEY_FILENAME "client_key.pem"
 #define CLIENT_CN "client"
-#define SERV_PORT "8080"
+#define SERV_PORT 8081
 #define SERV_HOSTNAME "server"
 #define CLIENT_ROOT_CERT "CA_cert.pem"
 

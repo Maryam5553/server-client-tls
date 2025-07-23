@@ -78,7 +78,7 @@ int send_CSR_wait_cert(int sockfd, X509_REQ *CSR, X509 **CA_root_cert, X509 **TL
         return 1;
     }
 
-    printf("Sent CSR to CA.\n");
+    printf("CSR sent to CA.\n");
 
     // wait for CA to sent root certificate
     printf("Waiting for CA to send root certificate...\n");

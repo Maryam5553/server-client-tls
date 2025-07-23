@@ -6,10 +6,10 @@ TOOL_DIR = ../tools/
 
 all: main
 
-main: main.o server.o $(TOOL_DIR)ssl_err.o $(TOOL_DIR)init_peer.o $(TOOL_DIR)gen_credentials.o $(TOOL_DIR)file_exists.o $(TOOL_DIR)request_TLS_certificate.o $(TOOL_DIR)connect_to_CA.o $(TOOL_DIR)serialization.o
+main: main.o server.o $(TOOL_DIR)ssl_err.o $(TOOL_DIR)setup_peer.o $(TOOL_DIR)gen_credentials.o $(TOOL_DIR)file_exists.o $(TOOL_DIR)request_TLS_certificate.o $(TOOL_DIR)connect_to_CA.o $(TOOL_DIR)serialization.o
 	$(CC) -o $@ $^ $(SSLFLAGS)
 
-main.o: main.c server.h $(TOOL_DIR)init_peer.h
+main.o: main.c server.h $(TOOL_DIR)setup_peer.h
 	$(CC) -c $^ $(SSLFLAGS)
 
 #server functions
@@ -20,7 +20,7 @@ ssl_err.o: $(TOOL_DIR)ssl_err.c $(TOOL_DIR)ssl_err.h
 	$(CC) -c $^ $(SSLFLAGS)
 
 #certificate generating functions
-init_peer.o: $(TOOL_DIR)init_peer.c $(TOOL_DIR)init_peer.h $(TOOL_DIR)gen_credentials.h $(TOOL_DIR)file_exists.h $(TOOL_DIR)request_TLS_certificate.h
+setup_peer.o: $(TOOL_DIR)setup_peer.c $(TOOL_DIR)setup_peer.h $(TOOL_DIR)gen_credentials.h $(TOOL_DIR)file_exists.h $(TOOL_DIR)request_TLS_certificate.h
 	$(CC) -c $^ $(SSLFLAGS)
 
 gen_credentials.o: $(TOOL_DIR)gen_credentials.c $(TOOL_DIR)gen_credentials.h

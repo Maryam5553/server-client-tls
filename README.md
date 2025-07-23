@@ -30,7 +30,7 @@ Build tool: GNU Make 4.3
 Library: OpenSSL 3.0.2 15 Mar 2022
 ```
 
-CA default port is 8082, as defined in `CA/CA.c` and `tools/connect_to_CA.h`; and server default port is 8080, as defined in `server/server.h`.
+CA default port is 8080, as defined in `CA/CA.c` and `tools/connect_to_CA.h`; and server default port is 8081, as defined in `server/server.h` and `client/client.h`.
 
 ## Demo
 
@@ -51,7 +51,7 @@ CA private key generated in file CA_key.pem.
 CA generated self-signed certificate CA_cert.pem using private key CA_key.pem.
 ***** SETUP DONE *****
 
-CA is listening on port 8082 for incoming connexions...
+CA is listening on port 8080 for incoming connexions...
 ```
 The CA will start by generating a private key, then a self-signed certificate.
 
@@ -67,11 +67,11 @@ The CA then listens for incoming CSR. Make sure this program is running when sta
 
 ### Step 3: server setup
 
-Open another terminal in the subdirectory `server/`. Execute `./main` to launch the server.
+Open a second terminal in the subdirectory `server/`. Execute `./main` to launch the server.
 
 The server will generate a private key and check wether it already owns a TLS certificate. Because it's the first time we launch the server, it doesn't. So, the server will connect to the CA and request a TLS certificate. 
 
-**Details of the process on the server side**
+#### Details of the process on the server side
 
 Here is the expected result from the previous step:
 
@@ -81,7 +81,7 @@ server$ ./main
 server private key generated in file serv_key.pem.
 No TLS certificate found: let's request a certificate to CA.
 CSR generated using private key serv_key.pem.
-Established connexion to CA at adress 127.0.0.1:8082
+Established connexion to CA at adress 127.0.0.1:8080
 CSR sent to CA.
 Waiting for CA to send root certificate...
 Root certificate received.
@@ -106,7 +106,7 @@ When this setup is done, the server will have access to 2 certificates:
 
 This ensure that both parties are part of the same chain of trust, rooted in the mutually trusted CA.
 
-**Details of the process on the CA side:**
+#### Details of the process on the CA side:
 
 Here is how the CA issues a certificate (this is printed on the CA's side when the server sets up):
 
@@ -124,10 +124,54 @@ Done treating the CSR request.
 
 The CA only emits a certificate if the CSR signature is valid.
 
->**Note: Security concerns.**
->
+#### Note: Security concerns.
+
 >We can notice that the CA **doesn't proceed** to any **identity verification** of the requester. In fact, it will issue a certificate to anyone, as long as the CSR is well-formed. This is contrary to real life, where the CA will confirm **domain control** and organizational identity validation.
 >
 >This project doesn't cover this part as it is only an example of a simplified PKI, covering only the certificate generation protocole and the role of TLS certificates in communications between peers.
 >
 >Let's also note that the communication between CA and requester isn't secure. In a real world scenario, this would compromise the integrity of the request, and lead to possible Man-in-the-Middle scenarios. The security of this scheme would fall as it lies in the trust of the root certificate.
+
+#### After the server setup
+
+The previous steps were meant to generate a TLS certificate for the server. After this, the setup is complete. The server will wait for clients to connect.
+
+```console
+server$ ./main
+***** SERVER SETUP *****
+[...]
+***** SETUP DONE *****
+
+Server listening on port 8081...
+```
+
+### Step 4: client setup
+
+Now that the server is setup, we'll do the same thing for the client.
+
+#### Design choice for a mutual authentication
+In a traditional server-client protocol (like HTTPS), only the client verifies the other peer's authenticity. In this project, I wanted to emphasizes the concept of a trust chain, where both parties must prove their identity through a common authority, which is at the heart of Public Key Infrastructure (PKI) systems. So here, the server will proceed to the same verification 
+
+#### Setup
+For this step, make sure the CA program is still running (this will serve for the client certificate request), and the server program is still running (so that the client can try to connect to the server).
+
+Open a third terminal is the subdirectory `client/`. Execute `./main` to start the client.
+
+You should get the same result as the server initialization:
+
+```console
+client$ ./main 
+***** CLIENT *****
+client private key generated in file client_key.pem.
+No TLS certificate found: let's request a certificate to CA.
+CSR generated using private key client_key.pem.
+Established connexion to CA at address 127.0.0.1:8080
+CSR sent to CA.
+Waiting for CA to send root certificate...
+Root certificate received.
+Waiting for CA to send TLS certificate...
+TLS certificate received.
+TLS certificate and root certificate written in client_cert.pem and CA_cert.pem.
+Connexion with CA closed.
+***** SETUP DONE *****
+```

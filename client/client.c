@@ -72,7 +72,7 @@ int connect_to_server(SSL_CTX **ctx, SSL **ssl, int *sock)
     // server info
     struct sockaddr_in serveraddr = {
         .sin_family = AF_INET,
-        .sin_port = htons(8080),
+        .sin_port = htons(SERV_PORT),
         .sin_addr.s_addr = inet_addr("127.0.0.1")};
 
     if (inet_pton(AF_INET, "127.0.0.1", &serveraddr.sin_addr) <= 0)
@@ -90,7 +90,7 @@ int connect_to_server(SSL_CTX **ctx, SSL **ssl, int *sock)
         return 1;
     }
 
-    printf("Connexion to the server.\n");
+    printf("Connexion to the server at address 127.0.0.1:%d.\n",SERV_PORT);
 
     // create BIO object to wrap the socket
 
