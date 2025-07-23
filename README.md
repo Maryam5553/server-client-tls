@@ -145,7 +145,7 @@ server$ ./main
 Server listening on port 8081...
 ```
 
-### Step 4: client setup
+### Step 4: client setup and communication with the server
 
 Now that the server is setup, we'll do the same thing for the client.
 
@@ -175,3 +175,42 @@ TLS certificate and root certificate written in client_cert.pem and CA_cert.pem.
 Connexion with CA closed.
 ***** SETUP DONE *****
 ```
+
+#### TLS connection to the server
+
+The setup is now completed. The server and client now have TLS certificates that they mutually recognize. The client will try to establish a connection with the server.
+
+On the client side:
+
+```console
+client$ ./main
+[...]
+Connexion to the server at address 127.0.0.1:8081.
+Initiating TLS handshake with the server
+TLS handshake was successful. Client connected securely.
+Wrote: "hello"
+Read: "hello".
+Sent close_notify to the server.
+Shutdown completed.
+```
+On the server side:
+
+```console
+server$ ./main
+[...]
+Server listening on port 8081...
+New client
+Waiting for client to initiate TLS handshake...
+TLS handshake completed. Client connected securely.
+Client connected securely.
+Read: "hello".
+Wrote: "hello".
+error reading data.
+The peer has closed the connection for writing by sending the close_notify alert.Sent close_notify to the peer. Connexion successfully closed.
+```
+Here is the protocole:
+- the client opens a TCP socket to connect to the server
+- the client intitiate the TLS handshake
+- if both parties verify the other peer's certificate succesfully, the connection is established
+- then server and client can exchange data until one of them closes the connection.
+
