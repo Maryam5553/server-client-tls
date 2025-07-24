@@ -2,13 +2,13 @@
 
 ## Presentation
 
-This personal project is an implementation from scratch of a simplified Public Key Infrastructure (PKI) using OpenSSL library. It features a custom Certification Authority, able to handle Certificate Signing Requests (CSR) and X.509 certificates; and a client-server communication protocole, secured with TLS and mutual authentication.
+This personal project is an implementation from scratch of a simplified Public Key Infrastructure (PKI) using OpenSSL library. It features a custom Certification Authority, able to handle Certificate Signing Requests (CSR) and X.509 certificates; and a client-server communication protocol, secured with TLS and mutual authentication.
 
 It demonstrates an understanding of X.509 certificates generation, TLS chain of trust, PKCS#10 CSR handling, and secure socket programming.
 
 **Features:**
 
-1. A Certification Autority (CA):
+1. A Certification Authority (CA):
     - generates a 2048-bits RSA private key;
     - generates a self-signed certificate in PEM format;
     - receives and verifies CSR;
@@ -22,7 +22,7 @@ It demonstrates an understanding of X.509 certificates generation, TLS chain of 
 
 ## Prerequisites
 
-This project was developped and tested in the following environment:
+This project was developed and tested in the following environment:
 ```
 OS: Ubuntu 22.04.5
 Compilation: gcc 11.4.0
@@ -69,7 +69,7 @@ The CA then listens for incoming CSR. Make sure this program is running when sta
 
 Open a second terminal in the subdirectory `server/`. Execute `./main` to launch the server.
 
-The server will generate a private key and check wether it already owns a TLS certificate. Because it's the first time we launch the server, it doesn't. So, the server will connect to the CA and request a TLS certificate. 
+The server will generate a private key and check whether it already owns a TLS certificate. Because it's the first time we launch the server, it doesn't. So, the server will connect to the CA and request a TLS certificate. 
 
 #### Details of the process on the server side
 
@@ -100,15 +100,15 @@ The protocol is as follows:
 
 When this setup is done, the server will have access to 2 certificates:
 
-- The server's certificate will be the one presented to clients during a connection to authentify the server.
+- The server's certificate will be the one presented to clients during a connection to authenticate the server.
 
-- The root certificate will act as a trust anchor to verify other certificates. In particular, when a client will try to connect to the server, its certificate will be considered valid only it it was signed by the root certificate's key.
+- The root certificate will act as a trust anchor to verify other certificates. In particular, when a client tries to connect to the server, its certificate will be considered valid only if it was signed by the root certificate's key.
 
-This ensure that both parties are part of the same chain of trust, rooted in the mutually trusted CA.
+This ensures that both parties are part of the same chain of trust, rooted in the mutually trusted CA.
 
 #### Details of the process on the CA side:
 
-Here is how the CA issues a certificate (this is printed on the CA's side when the server sets up):
+Here is how the CA issues a certificate (this is printed on the CA's side when the server is setting up):
 
 ```console
 Client connected.
@@ -126,11 +126,11 @@ The CA only emits a certificate if the CSR signature is valid.
 
 #### Note: Security concerns.
 
->We can notice that the CA **doesn't proceed** to any **identity verification** of the requester. In fact, it will issue a certificate to anyone, as long as the CSR is well-formed. This is contrary to real life, where the CA will confirm **domain control** and organizational identity validation.
+>We can notice that the CA **doesn't proceed** with any **identity verification** of the requester. In fact, it will issue a certificate to anyone, as long as the CSR is well-formed. This is contrary to real life, where the CA will confirm **domain control** and organizational identity validation.
 >
->This project doesn't cover this part as it is only an example of a simplified PKI, covering only the certificate generation protocole and the role of TLS certificates in communications between peers.
+>This project doesn't cover this part as it is only an example of a simplified PKI, covering only the certificate generation protocol and the role of TLS certificates in communications between peers.
 >
->Let's also note that the communication between CA and requester isn't secure. In a real world scenario, this would compromise the integrity of the request, and lead to possible Man-in-the-Middle scenarios. The security of this scheme would fall as it lies in the trust of the root certificate.
+>Let's also note that the communication between CA and the requester isn't secure. In a real world scenario, this would compromise the integrity of the request and lead to possible Man-in-the-Middle scenarios. The security of this scheme would fall as it lies in the trust of the root certificate.
 
 #### After the server setup
 
@@ -147,15 +147,15 @@ Server listening on port 8081...
 
 ### Step 4: client setup and communication with the server
 
-Now that the server is setup, we'll do the same thing for the client.
+Now that the server is set up, we'll do the same thing for the client.
 
 #### Design choice for a mutual authentication
-In a traditional server-client protocol (like HTTPS), only the client verifies the other peer's authenticity. In this project, I wanted to emphasizes the concept of a trust chain, where both parties must prove their identity through a common authority, which is at the heart of Public Key Infrastructure (PKI) systems. So here, the server will proceed to the same verification 
+In a traditional server-client protocol (like HTTPS), only the client verifies the other party's authenticity. In this project, I wanted to emphasize the concept of a trust chain, where both parties must prove their identity through a common authority, which is at the heart of Public Key Infrastructure (PKI) systems. So here, the server will proceed to the same verification.
 
 #### Setup
 For this step, make sure the CA program is still running (this will serve for the client certificate request), and the server program is still running (so that the client can try to connect to the server).
 
-Open a third terminal is the subdirectory `client/`. Execute `./main` to start the client.
+Open a third terminal in the subdirectory `client/`. Execute `./main` to start the client.
 
 You should get the same result as the server initialization:
 
@@ -208,9 +208,21 @@ Wrote: "hello".
 error reading data.
 The peer has closed the connection for writing by sending the close_notify alert.Sent close_notify to the peer. Connexion successfully closed.
 ```
-Here is the protocole:
+Here is the protocol:
 - the client opens a TCP socket to connect to the server
-- the client intitiate the TLS handshake
-- if both parties verify the other peer's certificate succesfully, the connection is established
-- then server and client can exchange data until one of them closes the connection.
+- the client initiates the TLS handshake
+- both parties present their X.509 certificate and verify the peer's certificate against the trusted root certificate issued by the CA. If they both verify the chain of trust, the authenticity of the other peer is confirmed, and the TLS handshake is completed.
+- after this stage, all data exchanged between server and client is encrypted using symmetric keys derived from the TLS handshake. This ensures both confidentiality and integrity. The server and client can exchange data until one side closes the connection.
 
+## Conclusion
+
+We've demonstrated how secure communication between peers can be established through mutual authentication, and how Certification Authorities implement a trusted chain of trust. It highlights the key principles behind Public Key Infrastructures (PKI), and showcases a practical example of authenticated, encrypted communication.
+
+## Future improvements
+
+While this project serves as a good example of a basic Certification Authority, here are some improvements I would implement to solidify this scheme:
+
+- introducing **intermediary certificates**, to better represent how certificates are chained and issued to a requester in real life;
+- adding **Certificate Revocation Lists** (CRL) to revoke expired or compromised certificates, and enforce a real-time revocation check;
+- securize communication between CA and requester, for example by requiring a pre-shared key;
+- containerize the CA, client and server programs to simplify setup and deployment.
